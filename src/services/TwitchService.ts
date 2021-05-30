@@ -1,7 +1,11 @@
 import axios, { AxiosInstance, AxiosResponse } from "axios";
 import dotenv from "dotenv";
 import { beforeNow, now } from "../helpers/date";
-import { StreamerInterface, TwitchResponse } from "../models/Twitch";
+import {
+  ClipInterface,
+  StreamerInterface,
+  TwitchResponse,
+} from "../models/Twitch";
 
 const { parsed: envs } = dotenv.config();
 
@@ -38,17 +42,46 @@ class TwitchService {
     return data.map((stream: StreamerInterface) => stream.user_id);
   }
 
-  public async getClips(broadcasterIds: string[]) {
+  public async getClipsSingleStream(broadcasterId: string) {
     try {
-      const { data } = await this.twitchApi.get("/clips", {
+      const {
+        data: { data },
+      } = await this.twitchApi.get("/clips", {
         params: {
-          broadcaster_id: broadcasterIds[0],
+          broadcaster_id: broadcasterId,
           started_at: beforeNow("days", 1),
           ended_at: now(),
           first: 5,
         },
       });
       return data;
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  public async getClipsMultiStream(broadcastersIds: string[]) {
+    try {
+      const streamsToGetClips: Promise<
+        AxiosResponse<TwitchResponse<ClipInterface[]>>
+      >[] = [];
+
+      broadcastersIds.forEach((id) => {
+        streamsToGetClips.push(
+          this.twitchApi.get("/clips", {
+            params: {
+              broadcaster_id: id,
+              started_at: beforeNow("days", 1),
+              ended_at: now(),
+              first: 5,
+            },
+          })
+        );
+      });
+
+      const responseData = await Promise.all(streamsToGetClips);
+
+      return responseData.map(({ data: { data } }) => data);
     } catch (error) {
       console.log(error);
     }
